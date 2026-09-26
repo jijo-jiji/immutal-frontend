@@ -6,7 +6,6 @@ import { REFERENCE_TX } from '@/lib/coldchain';
 import ExcursionChart from './components/ExcursionChart';
 import IntegrityCertificate from './components/IntegrityCertificate';
 import MerkleTree from './components/MerkleTree';
-import SysStatus from './components/SysStatus';
 
 const EMAIL = 'azizi.sahari@unipact.com.my';
 const PILOT_MAILTO = `mailto:${EMAIL}?subject=${encodeURIComponent('Immutal pilot request')}`;
@@ -109,10 +108,7 @@ export default function Home() {
               <a key={item.href} href={item.href} className="hover:text-ink transition-colors">{item.label}</a>
             ))}
           </nav>
-          <div className="flex items-center gap-5">
-            <SysStatus />
-            <a href={PILOT_MAILTO} className="hidden md:inline-flex btn btn-primary min-h-10 px-4 text-sm">Request a pilot</a>
-          </div>
+          <a href={PILOT_MAILTO} className="btn btn-primary min-h-10 px-4 text-sm">Request a pilot</a>
         </div>
       </header>
 
