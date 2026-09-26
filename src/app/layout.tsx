@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Immutal // Zero-Trust Middleware",
-  description: "Anchor ERP data. Prevent Fraud. Supply Chain Compliance on the EVM.",
+  title: "Immutal // Cold-Chain & Halal Logistics Integrity",
+  description: "Tamper-proof temperature and handling records for pharma cold-chain and Halal logistics in Malaysia. Zero-PII cryptographic anchoring on the EVM.",
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased scroll-smooth`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
