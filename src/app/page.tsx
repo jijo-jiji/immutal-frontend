@@ -6,10 +6,9 @@ import { REFERENCE_TX } from '@/lib/coldchain';
 import ExcursionChart from './components/ExcursionChart';
 import IntegrityCertificate from './components/IntegrityCertificate';
 import MerkleTree from './components/MerkleTree';
+import PilotForm from './components/PilotForm';
 
 const EMAIL = 'azizi.sahari@unipact.com.my';
-const PILOT_MAILTO = `mailto:${EMAIL}?subject=${encodeURIComponent('Immutal pilot request')}`;
-const PARTNER_MAILTO = `mailto:${EMAIL}?subject=${encodeURIComponent('Immutal white-label partnership')}`;
 const REFERENCE_TX_URL = `https://sepolia.etherscan.io/tx/${REFERENCE_TX}`;
 
 const NAV = [
@@ -108,7 +107,7 @@ export default function Home() {
               <a key={item.href} href={item.href} className="hover:text-ink transition-colors">{item.label}</a>
             ))}
           </nav>
-          <a href={PILOT_MAILTO} className="btn btn-primary min-h-10 px-4 text-sm">Request a pilot</a>
+          <a href="#contact" className="btn btn-primary min-h-10 px-4 text-sm">Request a pilot</a>
         </div>
       </header>
 
@@ -124,7 +123,7 @@ export default function Home() {
               not even a database admin, can quietly rewrite it.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
-              <a href={PILOT_MAILTO} className="btn btn-primary">Request a pilot</a>
+              <a href="#contact" className="btn btn-primary">Request a pilot</a>
               <a href="#how-it-works" className="btn btn-secondary">See how it works</a>
             </div>
             <ul className="mt-10 flex flex-wrap gap-x-6 gap-y-2 type-small text-ink-2">
@@ -349,7 +348,7 @@ export default function Home() {
               <h3 className="type-h3">Build WMS or ERP software?</h3>
               <p className="type-body text-ink-2 mt-1">White-label Immutal&apos;s compliance layer inside your own product.</p>
             </div>
-            <a href={PARTNER_MAILTO} className="btn btn-secondary">Partner with us</a>
+            <a href="#contact" className="btn btn-secondary">Partner with us</a>
           </div>
         </div>
       </section>
@@ -386,20 +385,20 @@ export default function Home() {
 
       {/* 07 Call to action */}
       <section id="contact" className="section-pad bg-accent text-white scroll-mt-16">
-        <div className="container-page">
-          <div className="type-eyebrow text-white/80 mb-4">08 · Run a pilot</div>
-          <h2 className="type-display max-w-3xl">Run a pilot on one cold‑chain lane.</h2>
-          <p className="type-lead text-white/85 mt-6 max-w-2xl">
-            We&apos;re looking for Malaysian 3PLs, pharma distributors and Halal exporters to pilot Immutal on
-            real shipments. Tell us what you move, and where your temperature and handling logs live today.
-          </p>
-          <div className="mt-10 flex flex-col sm:flex-row gap-3">
-            <a href={PILOT_MAILTO} className="btn bg-white text-accent hover:bg-accent-soft">Request a pilot</a>
-            <a href={PARTNER_MAILTO} className="btn border border-white/60 text-white hover:border-white">Partner with us</a>
+        <div className="container-page grid gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-16 items-start">
+          <div>
+            <div className="type-eyebrow text-white/80 mb-4">08 · Run a pilot</div>
+            <h2 className="type-display max-w-3xl">Run a pilot on one cold‑chain lane.</h2>
+            <p className="type-lead text-white/85 mt-6 max-w-2xl">
+              We&apos;re looking for Malaysian 3PLs, pharma distributors and Halal exporters to pilot Immutal on
+              real shipments. Tell us what you move, and where your temperature and handling logs live today.
+            </p>
+            <p className="type-body text-white/85 mt-8">Prefer email?</p>
+            <a href={`mailto:${EMAIL}`} className="mt-1 inline-block type-data text-white underline underline-offset-4 break-all">
+              {EMAIL}
+            </a>
           </div>
-          <a href={`mailto:${EMAIL}`} className="mt-8 inline-block type-data text-white underline underline-offset-4 break-all">
-            {EMAIL}
-          </a>
+          <PilotForm />
         </div>
       </section>
 
