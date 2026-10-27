@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { MousePointerClick, RotateCcw } from 'lucide-react';
-import { applyEdits, isExcursion, READINGS, rootOf, shortHash, tamperedValue } from '@/lib/coldchain';
-import { useAnchoredTree, useMerkleTree } from '@/lib/useMerkleTree';
+import { applyEdits, isExcursion, READINGS, shortHash, tamperedValue } from '@/lib/coldchain';
+import { useAnchored, useSealed } from '@/lib/useMerkleTree';
 
 // SVG layout (user units). The container scrolls sideways on narrow phones.
 const W = 800;
@@ -32,10 +32,10 @@ export default function MerkleTree() {
   const [edited, setEdited] = useState<Set<number>>(new Set());
   const [focused, setFocused] = useState<number | null>(null);
   const readings = applyEdits(edited);
-  const anchored = useAnchoredTree();
-  const current = useMerkleTree(readings);
+  const anchored = useAnchored();
+  const current = useSealed(readings);
   const ready = anchored && current;
-  const verified = ready && rootOf(anchored) === rootOf(current);
+  const verified = ready && anchored.commitment === current.commitment;
 
   const toggle = (i: number) =>
     setEdited(prev => {
@@ -45,7 +45,7 @@ export default function MerkleTree() {
     });
 
   const onPath = (level: number, j: number) => focused !== null && j === focused >> level;
-  const broken = (level: number, j: number) => !!ready && current[level][j] !== anchored[level][j];
+  const broken = (level: number, j: number) => !!ready && current.levels[level][j] !== anchored.levels[level][j];
 
   const nodeClass = (level: number, j: number) =>
     broken(level, j)
@@ -81,7 +81,7 @@ export default function MerkleTree() {
           <MousePointerClick className="size-4 text-accent" strokeLinecap="square" aria-hidden="true" />
           Hover a reading to trace its proof. Click it to edit the value.
         </div>
-        <div className="type-data text-muted">{READINGS.length} readings → 1 root</div>
+        <div className="type-data text-muted">{READINGS.length} salted leaves → 1 root → 1 commitment</div>
       </div>
 
       <div className="overflow-x-auto">
@@ -95,7 +95,7 @@ export default function MerkleTree() {
             const isRoot = level === LEVELS.length;
             return Array.from({ length: count }, (_, j) => {
               const cx = nodeCx(level, j);
-              const hash = current?.[level][j];
+              const hash = current?.levels[level][j];
               return (
                 <g key={`${level}-${j}`}>
                   <rect x={cx - box.w / 2} y={box.y} width={box.w} height={box.h} className={nodeClass(level, j)}
@@ -136,7 +136,7 @@ export default function MerkleTree() {
                   {r.temp_c.toFixed(1)}°
                 </text>
                 <text x={cx} y={LEAF.y + 56} textAnchor="middle" className={`font-mono text-[11px] ${broken(0, i) ? 'fill-tampered' : 'fill-muted'}`}>
-                  {current ? current[0][i].slice(0, 6) : '…'}
+                  {current ? current.levels[0][i].slice(0, 6) : '…'}
                 </text>
               </g>
             );
@@ -148,11 +148,11 @@ export default function MerkleTree() {
         <div aria-live="polite">
           <div className={`type-eyebrow flex items-center gap-2 ${!ready ? 'text-muted' : verified ? 'text-verified' : 'text-tampered'}`}>
             <span className="inline-block size-2 bg-current" aria-hidden="true" />
-            {!ready ? 'Hashing…' : verified ? 'Root matches the anchor' : 'Root mismatch: tampering detected'}
+            {!ready ? 'Hashing…' : verified ? 'Commitment matches the anchor' : 'Commitment mismatch: edit detected'}
           </div>
           <p className="type-small text-ink-2 mt-1.5">
             {edited.size === 0
-              ? 'Every reading hashes up into one root. Only that root goes on-chain.'
+              ? 'Each reading is salted and hashed into a leaf, and the leaves fold into one root. Only a 32-byte commitment to that root goes on-chain.'
               : `Edited: ${[...edited].sort((a, b) => a - b).map(i => `${READINGS[i].time} (${READINGS[i].temp_c.toFixed(1)}° → ${tamperedValue(READINGS[i]).toFixed(1)}°)`).join(', ')}. The red path shows exactly which hashes broke.`}
           </p>
         </div>

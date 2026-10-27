@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Immutal // Cold-Chain & Halal Logistics Integrity",
-  description: "Tamper-proof temperature and handling records for pharma cold-chain and Halal logistics in Malaysia. Zero-PII cryptographic anchoring on the EVM.",
+  title: "Immutal // Tamper-evident cold-chain records",
+  description: "Tamper-evident temperature and handling records for pharmaceutical cold chain in Malaysia. Salted Merkle batches anchored on Ethereum, verifiable with your own RPC provider.",
 };
 
 export default function RootLayout({
