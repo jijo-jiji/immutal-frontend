@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { EyeOff, RotateCcw } from 'lucide-react';
 import {
-  applyEdits, EXCURSION_INDEX, isExcursion, READINGS, rootOf, SAFE_MAX_C, SAFE_MIN_C, SHIPMENT, shortHash,
+  applyEdits, EXCURSION_INDEX, isExcursion, READINGS, SAFE_MAX_C, SAFE_MIN_C, SHIPMENT, shortHash,
 } from '@/lib/coldchain';
-import { useAnchoredTree, useMerkleTree } from '@/lib/useMerkleTree';
+import { useAnchored, useSealed } from '@/lib/useMerkleTree';
 
 // Chart geometry (SVG user units; the SVG scales to its container)
 const W = 440;
@@ -23,10 +23,10 @@ const EXCURSION_EDIT = new Set([EXCURSION_INDEX]);
 export default function ExcursionChart() {
   const [tampered, setTampered] = useState(false);
   const readings = applyEdits(tampered ? EXCURSION_EDIT : NO_EDITS);
-  const anchored = useAnchoredTree();
-  const current = useMerkleTree(readings);
+  const anchored = useAnchored();
+  const current = useSealed(readings);
   const ready = anchored && current;
-  const verified = ready && rootOf(anchored) === rootOf(current);
+  const verified = ready && anchored.commitment === current.commitment;
 
   const original = READINGS[EXCURSION_INDEX];
   const edited = readings[EXCURSION_INDEX];
@@ -102,13 +102,13 @@ export default function ExcursionChart() {
         <div aria-live="polite" className="min-w-0">
           <div className={`type-eyebrow flex items-center gap-2 ${!ready ? 'text-muted' : verified ? 'text-verified' : 'text-tampered'}`}>
             <span className="inline-block size-2 bg-current" aria-hidden="true" />
-            {!ready ? 'Hashing…' : verified ? 'Verified: matches anchored root' : 'Tampering detected: root mismatch'}
+            {!ready ? 'Hashing…' : verified ? 'Matches the anchored commitment' : 'Edit detected: commitment mismatch'}
           </div>
           <dl className="type-data mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-ink-2">
-            <dt className="text-muted">anchored</dt>
-            <dd className="truncate">{anchored ? shortHash(rootOf(anchored), 10, 8) : '…'}</dd>
-            <dt className="text-muted">current</dt>
-            <dd className={`truncate ${ready && !verified ? 'text-tampered font-semibold' : ''}`}>{current ? shortHash(rootOf(current), 10, 8) : '…'}</dd>
+            <dt className="text-muted">on-chain</dt>
+            <dd className="truncate">{anchored ? shortHash(anchored.commitment, 10, 8) : '…'}</dd>
+            <dt className="text-muted">recomputed</dt>
+            <dd className={`truncate ${ready && !verified ? 'text-tampered font-semibold' : ''}`}>{current ? shortHash(current.commitment, 10, 8) : '…'}</dd>
           </dl>
         </div>
         <button
@@ -117,10 +117,12 @@ export default function ExcursionChart() {
         >
           {tampered
             ? <><RotateCcw className="size-4" strokeLinecap="square" aria-hidden="true" />Restore original</>
-            : <><EyeOff className="size-4" strokeLinecap="square" aria-hidden="true" />Hide the excursion</>}
+            : <><EyeOff className="size-4" strokeLinecap="square" aria-hidden="true" />Edit it after anchoring</>}
         </button>
       </div>
-      <figcaption className="sr-only">Try editing the out-of-range reading and watch the cryptographic proof fail.</figcaption>
+      <figcaption className="border-t border-line px-4 sm:px-5 py-3 type-small text-muted">
+        Demo records are sealed in your browser with the real protocol. Demo salts are fixed so the page is reproducible; the service uses random 128-bit salts.
+      </figcaption>
     </figure>
   );
 }

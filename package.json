@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:protocol": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/protocol.test.mts"
   },
   "dependencies": {
     "lucide-react": "^1.48.0",

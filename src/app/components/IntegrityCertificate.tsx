@@ -1,9 +1,11 @@
-import { buildTree, isExcursion, READINGS, rootOf, SAFE_MAX_C, SAFE_MIN_C, SHIPMENT } from '@/lib/coldchain';
+import { EXCURSION_INDEX, isExcursion, PERIOD, proofFor, READINGS, SAFE_MAX_C, SAFE_MIN_C, SHIPMENT, sealReadings } from '@/lib/coldchain';
 
-// A design preview of the audit report a pilot customer would receive.
-// The Merkle root is real: computed from the same readings as the demos above.
+// A design preview of the audit report a pilot customer would receive. The commitment and the
+// proof path are real: sealed with the same protocol as the demos above, but never anchored,
+// so the layout carries a SAMPLE stamp instead of a verdict.
 export default async function IntegrityCertificate() {
-  const root = rootOf(await buildTree(READINGS));
+  const sealed = await sealReadings(READINGS);
+  const proof = await proofFor(sealed, EXCURSION_INDEX);
   const excursions = READINGS.filter(isExcursion);
 
   const fields = [
@@ -63,7 +65,7 @@ export default async function IntegrityCertificate() {
         </table>
         {excursions.length > 0 && (
           <p className="type-small text-ink-2 mt-3">
-            {excursions.length} excursion recorded and preserved as logged. Nothing in this record has been edited since anchoring.
+            {excursions.length} excursion recorded and kept as logged. Once its period is anchored and final, any edit to this reading fails verification.
           </p>
         )}
       </div>
@@ -72,22 +74,26 @@ export default async function IntegrityCertificate() {
       <div className="border-t-2 border-ink px-5 sm:px-8 py-5 grid sm:grid-cols-[1fr_auto] gap-5 items-end">
         <dl className="type-data space-y-2 min-w-0">
           <div>
-            <dt className="text-muted">Merkle root (SHA-256)</dt>
-            <dd className="font-semibold break-all">{root}</dd>
+            <dt className="text-muted">Commitment (the 32 bytes written on-chain)</dt>
+            <dd className="font-semibold break-all">0x{sealed.commitment}</dd>
           </div>
           <div>
-            <dt className="text-muted">Anchored on</dt>
-            <dd className="font-semibold">Ethereum · Sepolia testnet</dd>
+            <dt className="text-muted">Period · batch size · record · proof</dt>
+            <dd className="font-semibold">{PERIOD} · {READINGS.length} records · #{EXCURSION_INDEX} · {proof.length} hashes ({proof.length * 32} bytes)</dd>
           </div>
           <div>
-            <dt className="text-muted">Verify independently</dt>
-            <dd>Re-hash the records and compare the root on any block explorer.</dd>
+            <dt className="text-muted">Chain, contract and anchoring address</dt>
+            <dd>Pinned in the audit dossier the auditor receives separately.</dd>
+          </div>
+          <div>
+            <dt className="text-muted">Verdicts a real certificate can show</dt>
+            <dd>VALID · PENDING · INVALID · CONSISTENT_OFFLINE · ERROR</dd>
           </div>
         </dl>
         {/* Stamp */}
-        <div className="justify-self-start sm:justify-self-end -rotate-6 border-[3px] border-verified text-verified px-4 py-2 text-center select-none" aria-label="Verified">
-          <div className="font-mono text-lg font-bold tracking-[0.15em] leading-none">VERIFIED</div>
-          <div className="font-mono text-[11px] tracking-[0.1em] mt-1">ROOT MATCH</div>
+        <div className="justify-self-start sm:justify-self-end -rotate-6 border-[3px] border-line-strong text-muted px-4 py-2 text-center select-none" aria-label="Sample, not anchored">
+          <div className="font-mono text-lg font-bold tracking-[0.15em] leading-none">SAMPLE</div>
+          <div className="font-mono text-[11px] tracking-[0.1em] mt-1">NOT ANCHORED</div>
         </div>
       </div>
     </article>

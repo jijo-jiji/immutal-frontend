@@ -1,6 +1,6 @@
 import {
-  Blocks, EyeOff, FilePen, FileCheck2, Fingerprint, Link2, Lock, MapPin, MonitorCheck, Radio, ShieldCheck,
-  Syringe, Thermometer, Trash2, Truck, Wallet, WifiOff, type LucideIcon,
+  Ban, Blocks, Clock, EyeOff, FilePen, FileCheck2, Fingerprint, Link2, Lock, MapPin, MonitorCheck, Radio,
+  ShieldCheck, Syringe, Thermometer, Trash2, Truck, Wallet, WifiOff, type LucideIcon,
 } from 'lucide-react';
 import { REFERENCE_TX } from '@/lib/coldchain';
 import ExcursionChart from './components/ExcursionChart';
@@ -16,55 +16,92 @@ const REFERENCE_TX_URL = `https://sepolia.etherscan.io/tx/${REFERENCE_TX}`;
 const NAV = [
   { href: '#how-it-works', label: 'How it works' },
   { href: '#certificate', label: 'Certificate' },
+  { href: '#limits', label: 'Limits' },
   { href: '#compliance', label: 'Compliance' },
-  { href: '#integrations', label: 'Integrations' },
   { href: '#status', label: 'Status' },
 ];
 
+// Scenarios the system is tested against (threat model T1 to T3). They are risks, not statistics.
 const FAILURES = [
-  { icon: Thermometer, code: 'EXCURSION_ERASED', title: 'Excursions erased', text: 'A 40-minute spike above 8 °C is overwritten with in-range values before the client audit.' },
-  { icon: WifiOff, code: 'GAP_BACKFILLED', title: 'Gaps backfilled', text: 'A sensor drops offline mid-route. The missing hours are filled in with plausible readings afterwards.' },
-  { icon: FilePen, code: 'HANDLING_REWRITTEN', title: 'Handling records rewritten', text: 'Halal segregation or cleaning records are edited after a cross-contamination incident.' },
-  { icon: Trash2, code: 'TRAIL_DELETED', title: 'Audit trail deleted', text: 'Anyone with database admin rights can alter the log itself. Nothing outside the system notices.' },
+  { icon: Thermometer, code: 'EXCURSION_OVERWRITTEN', title: 'Excursions overwritten', text: 'A reading above range could be replaced with an in-range value after the fact, in a system the auditor cannot inspect independently.' },
+  { icon: WifiOff, code: 'GAP_BACKFILLED', title: 'Gaps backfilled', text: 'Hours missing after a sensor drops offline could be filled in later with plausible readings.' },
+  { icon: FilePen, code: 'HANDLING_REWRITTEN', title: 'Handling records rewritten', text: 'Receipt, dispatch or cleaning entries could be edited after an incident.' },
+  { icon: Trash2, code: 'TRAIL_ADMIN_CONTROLLED', title: 'Audit trails held by the editor', text: 'An audit trail controlled by the administrator who can edit the data proves little to an outsider.' },
 ];
 
 const STEPS = [
-  { icon: Radio, n: '01', title: 'Capture', text: 'Temperature readings and handling logs flow in from your sensors, WMS or spreadsheets through a background API.', data: 'sensor / wms → immutal' },
-  { icon: Fingerprint, n: '02', title: 'Hash', text: 'Each record gets a SHA-256 fingerprint on your own server. The raw data never leaves it.', data: 'sha256(record) → 0x9c1f…' },
-  { icon: Blocks, n: '03', title: 'Batch and anchor', text: 'A day of fingerprints folds into one Merkle root. One transaction anchors the whole batch to a public ledger.', data: '8,640 records → 1 tx' },
-  { icon: ShieldCheck, n: '04', title: 'Verify', text: 'Anyone re-hashes a record and checks it against the chain. One altered digit and the proof fails.', data: 'root == anchored ?' },
+  { icon: Radio, n: '01', title: 'Capture', text: 'Readings and handling events arrive through an authenticated REST API. Each is checked and written in one canonical form (RFC 8785), so a reading always has the same bytes.', data: 'POST /records → canonical JSON' },
+  { icon: Fingerprint, n: '02', title: 'Salt and hash', text: 'Every record gets a random 128-bit salt and a SHA-256 leaf hash on the operator’s server. The salt keeps a proof for one record from revealing its neighbours.', data: 'sha256(0x00 ‖ salt ‖ entry)' },
+  { icon: Blocks, n: '03', title: 'Batch and anchor', text: 'A period’s leaves fold into an RFC 9162 Merkle tree. One transaction writes a 32-byte commitment to the root, the record count and a batch salt.', data: 'N records → 1 commitment' },
+  { icon: ShieldCheck, n: '04', title: 'Verify', text: 'An auditor opens a static verifier page, supplies a bundle and a pinned dossier, and checks the commitment on-chain through an RPC provider of their choice.', data: 'bundle + dossier + own RPC' },
 ];
 
 const COMPLIANCE = [
-  { icon: Syringe, tag: 'GDP / GDPMD', title: 'Pharma and medical-device cold chain', text: 'Distributors must keep continuous, unaltered temperature records for every shipment. Immutal makes those records provably original.' },
-  { icon: Truck, tag: 'MS 2400 · Halal', title: 'Halal transport and warehousing', text: 'Segregation, cleaning and handling logs stay tamper-evident from warehouse to port, ready for certification audits.' },
-  { icon: Lock, tag: 'PDPA 2010', title: 'Personal data protection', text: 'Only one-way hashes are published. Customer data, routes and trade secrets stay on your servers.' },
+  { icon: Syringe, tag: 'NPRA · GDP', title: 'Pharmaceutical distribution (pilot focus)', text: 'Distributors keep temperature and handling records under NPRA’s Good Distribution Practice guideline. Immutal gives inspectors and clients a way to check those records have not changed since anchoring.' },
+  { icon: Lock, tag: 'PDPA 2010', title: 'Data-minimising by design', text: 'Only fixed-size digests go on a public chain. Records and salts stay on the operator’s servers, and a bundle shows only the record it proves, including any handler ID inside it.' },
+  { icon: Truck, tag: 'Halal · extension', title: 'Halal handling logs', text: 'Segregation and cleaning logs use the same mechanism. They sit outside the current evaluation and follow the pharmaceutical pilot.' },
 ];
 
 const COMPARISON = [
-  { before: 'Anyone with admin rights can edit a record without a trace.', after: 'Any edit, even one digit, breaks the cryptographic proof.' },
-  { before: 'Evidence lives inside the system being audited.', after: 'Fingerprints are anchored on a public ledger nobody controls.' },
-  { before: 'Auditors have to trust your IT team.', after: 'Auditors verify records on-chain themselves.' },
-  { before: 'Proving integrity means opening your database.', after: 'Proving integrity reveals nothing but a hash.' },
+  { before: 'Whoever administers the database can edit a record, and an audit trail they control proves little to an outsider.', after: 'After the anchor is final, any edit to a record fails verification.' },
+  { before: 'Evidence lives inside the system being audited.', after: 'A fixed-size commitment lives on a public ledger the operator cannot rewrite.' },
+  { before: 'Auditors have to trust the operator’s IT team.', after: 'Auditors run a static verifier against an RPC provider they choose.' },
+  { before: 'Proving integrity can mean opening the whole database.', after: 'A bundle proves one record and reveals nothing practical about the others.' },
 ];
 
 const NO_ASKS = [
-  { icon: EyeOff, title: 'No data on-chain', text: 'Only a 32-byte fingerprint is published. It cannot be reversed into the record.' },
-  { icon: Wallet, title: 'No crypto for your team', text: 'No wallets, tokens or gas fees. Immutal handles every on-chain write.' },
-  { icon: MonitorCheck, title: 'No new software for staff', text: 'A background API beside your WMS or ERP. Warehouse workflows stay the same.' },
+  { icon: EyeOff, title: 'No readable data on-chain', text: 'One 32-byte commitment per period. A random batch salt hides record volumes, empty periods included.' },
+  { icon: Wallet, title: 'No wallets for your staff', text: 'The service holds a hot anchoring key and a cold admin key. Staff never handle tokens or gas.' },
+  { icon: MonitorCheck, title: 'No new software for staff', text: 'A background API beside the WMS, ERP or spreadsheets you already run.' },
 ];
 
+// FYP1 reference run, 26 October 2026, local chain. Method and pass criteria are in the
+// Threat Model and Evaluation Matrix.
 const STATS = [
-  { value: '32', unit: 'bytes', text: 'published on-chain per batch. The records never leave your servers.' },
-  { value: '1', unit: 'transaction', text: 'per daily batch by design, however many readings it holds.' },
-  { value: '0', unit: 'personal data fields', text: 'ever written to the blockchain.' },
-  { value: '1', unit: 'edited digit', text: 'is enough to break the proof. Try it above.' },
+  { value: '5,000', unit: 'of 5,000 edits caught', text: 'Five tampering classes, 1,000 mutations each. No misses, so the miss rate is under 0.3% at 95% confidence.' },
+  { value: '79,432', unit: 'verdicts, 0 mismatches', text: 'Python, a browser verifier and the transparency-dev reference library agree on every proof verdict.' },
+  { value: '≈71k', unit: 'gas per daily anchor', text: 'A fixed-size commitment per period, however many records it covers. Local chain; Sepolia figures follow.' },
+  { value: '0 of 10,000', unit: 'size forgeries accepted', text: 'A bare RFC 9162 proof check accepted 8,121 of them. Binding the size into the commitment rejects every one.' },
 ];
 
 const CERTIFICATE_POINTS = [
-  { icon: Thermometer, title: 'Every reading, excursions included', text: 'The record shows what happened, not what someone wished had happened.' },
-  { icon: Fingerprint, title: 'A Merkle root and on-chain reference', text: 'The cryptographic link between this document and the public ledger.' },
-  { icon: FileCheck2, title: 'Verifiable without Immutal', text: 'Auditors re-hash the records themselves. No login, no database access.' },
+  { icon: Thermometer, title: 'Every reading, excursions included', text: 'The record shows what was logged, not what anyone wished had been logged.' },
+  { icon: Fingerprint, title: 'A commitment the chain can confirm', text: 'The auditor rebuilds the commitment from the bundle and finds it on-chain at the finalised block.' },
+  { icon: FileCheck2, title: 'Verifiable without Immutal', text: 'A static page and an RPC provider of the auditor’s choice. No login, no database access, no wallet.' },
+];
+
+// Threat model classes (T1 to T18), grouped by what the design does about them.
+const DETECTED = [
+  'Edited, deleted, inserted, duplicated or reordered records (T1 to T3)',
+  'Forged inclusion proofs (T4)',
+  'Roots shown from another contract, chain or key (T7)',
+  'A lying RPC provider or altered verifier, through a second provider and a published verifier hash (T8)',
+];
+const BOUNDED = [
+  'Edits made before a period is anchored stay hidden until that anchor. The window is one period plus anchoring and finality time (T9).',
+  'A wound-back server clock: the anchor’s block time caps every receipt claim (T10).',
+  'Anchors lost to reorgs, fee spikes or outages: finality checks, capped retries, resends and alerts (T15).',
+];
+const UNDETECTED = [
+  'Fabricated data at capture, or two sets of books (T11)',
+  'Collusion between operator and auditor (T18)',
+  'Sensor accuracy and calibration',
+  'Availability of off-chain records. An operator who refuses to produce one creates evidence of its own.',
+];
+
+const AVAILABLE_NOW = ['REST ingestion API with API keys', 'Evidence bundle export per record', 'Batch and alert status API'];
+
+const ROADMAP = [
+  { phase: 'FYP2', items: 'Google Sheets sync and CSV / Excel import, tested against round-trip conversions' },
+  { phase: 'After the pilot', items: 'Temperature logger gateways (HTTP / MQTT), Odoo Inventory' },
+  { phase: 'Out of FYP scope', items: 'Commercial ERP connectors such as SAP Business One, Dynamics 365 Business Central, AutoCount and SQL Account' },
+];
+
+const STATUS = [
+  { state: 'BUILT', title: 'Anchoring contract', text: 'Append-only, role-split, no upgrade path. 24 Foundry tests, 100% line and branch coverage on a local chain.', done: true },
+  { state: 'BUILT', title: 'Service and verifier', text: 'Canonical entries, salted leaves, RFC 9162 batching, anchoring with retries and alerts, and a static browser verifier.', done: true },
+  { state: 'NEXT · FYP2', title: 'Sepolia soak test', text: 'Scripted deployment of the new contract, then a 30-day hourly run with injected faults.', done: false },
+  { state: 'OPEN', title: 'Pilot', text: 'Seeking one Malaysian pharma distributor or 3PL. Synthetic and public data are the fallback.', done: true },
 ];
 
 // Lucide defaults to round caps; square caps match the hard-edged style
@@ -73,21 +110,6 @@ const ICON = { strokeWidth: 1.75, strokeLinecap: 'square', strokeLinejoin: 'mite
 function Icon({ icon: Glyph, className = 'size-5' }: { icon: LucideIcon; className?: string }) {
   return <Glyph className={className} {...ICON} />;
 }
-
-const AVAILABLE_NOW = ['REST API', 'Google Sheets sync', 'Excel / CSV import'];
-
-const ROADMAP = [
-  { phase: 'Phase 1', items: 'Temperature logger gateways (HTTP / MQTT), Odoo Inventory' },
-  { phase: 'Phase 2', items: 'SAP Business One, Microsoft Dynamics 365 Business Central, AutoCount, SQL Account' },
-  { phase: 'Phase 3', items: 'SAP S/4HANA and EWM, enterprise WMS through partners' },
-];
-
-const STATUS = [
-  { state: 'LIVE', title: 'Sepolia testnet', text: 'Anchoring runs on Ethereum Sepolia today.', done: true },
-  { state: 'BUILT', title: 'Batch smart contract', text: 'Merkle batch anchoring with OpenZeppelin role-based access.', done: true },
-  { state: 'IN DEVELOPMENT', title: 'API batching', text: 'Merkle batching inside the middleware API.', done: false },
-  { state: 'OPEN', title: 'Pilot programme', text: 'Accepting the first Malaysian pilot partners.', done: true },
-];
 
 function Eyebrow({ n, children, onDark = false }: { n?: string; children: React.ReactNode; onDark?: boolean }) {
   return (
@@ -120,20 +142,24 @@ export default function Home() {
       <section id="top" className="section-pad border-b border-line">
         <div className="container-page grid lg:grid-cols-[1fr_1.1fr] gap-12 lg:gap-16 items-center">
           <div>
-            <Eyebrow>Cold chain and Halal logistics compliance</Eyebrow>
-            <h1 className="type-display">Prove the cold chain never broke.</h1>
+            <Eyebrow>Cold-chain log integrity · NPRA GDP</Eyebrow>
+            <h1 className="type-display">Prove the log wasn&apos;t edited after the fact.</h1>
             <p className="type-lead text-ink-2 mt-6 max-w-[34rem]">
-              Tamper-proof temperature and handling records for pharma and Halal logistics.
-              Immutal anchors a fingerprint of every log to a public blockchain, so no one,
-              not even a database admin, can quietly rewrite it.
+              Immutal seals each day of temperature and handling records into one fixed-size commitment on
+              Ethereum. Once that anchor is final, an auditor can detect any later change to those records with a
+              static verifier and an RPC provider of their own choosing, without trusting the operator.
+            </p>
+            <p className="type-small text-muted mt-4 max-w-[34rem]">
+              It shows records are unchanged since anchoring. It cannot show that a sensor read correctly, or
+              that the data was honest when it was captured.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <a href={PILOT_MAILTO} className="btn btn-primary">Request a pilot</a>
               <a href="#how-it-works" className="btn btn-secondary">See how it works</a>
             </div>
             <ul className="mt-10 flex flex-wrap gap-x-6 gap-y-2 type-small text-ink-2">
-              <li className="flex items-center gap-2"><Icon icon={Lock} className="size-4 text-accent" />Zero personal data on-chain</li>
-              <li className="flex items-center gap-2"><Icon icon={Link2} className="size-4 text-accent" />Verifiable on Ethereum</li>
+              <li className="flex items-center gap-2"><Icon icon={Lock} className="size-4 text-accent" />Salted hashes, digests only on-chain</li>
+              <li className="flex items-center gap-2"><Icon icon={Link2} className="size-4 text-accent" />Verify with your own RPC provider</li>
               <li className="flex items-center gap-2"><Icon icon={MapPin} className="size-4 text-accent" />Built for Malaysia</li>
             </ul>
           </div>
@@ -149,14 +175,18 @@ export default function Home() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-line">
             {STATS.map(stat => (
               <div key={stat.unit} className="bg-surface py-8 lg:py-10 sm:px-6">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-5xl lg:text-6xl font-extrabold tracking-tight leading-none">{stat.value}</span>
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="text-4xl lg:text-5xl font-extrabold tracking-tight leading-none">{stat.value}</span>
                   <span className="type-eyebrow text-accent">{stat.unit}</span>
                 </div>
                 <p className="type-small text-ink-2 mt-3 max-w-[16rem]">{stat.text}</p>
               </div>
             ))}
           </div>
+          <p className="type-small text-muted py-4">
+            FYP1 reference run, 26 October 2026, on a local chain. Pass criteria and method are fixed in the
+            threat model and evaluation matrix. Sepolia and pilot results follow in FYP2.
+          </p>
         </div>
       </section>
 
@@ -165,10 +195,13 @@ export default function Home() {
         <div className="container-page grid lg:grid-cols-[5fr_7fr] gap-10 lg:gap-16">
           <div>
             <Eyebrow n="01">The problem</Eyebrow>
-            <h2 className="type-h2">A temperature log is only as honest as whoever can edit it.</h2>
+            <h2 className="type-h2">A temperature log is only as trustworthy as whoever can edit it.</h2>
             <p className="type-lead text-ink-2 mt-5">
-              When a shipment leaves its safe range, the pressure to fix the record is immediate.
-              Today that record sits in a database someone on your team can change, and a regulator has no way to tell.
+              Distributors keep these records to show medicines stayed in range. Systems may keep an audit
+              trail, but an outsider has to take the operator&apos;s word that it is complete.
+            </p>
+            <p className="type-small text-muted mt-5">
+              The cards list scenarios Immutal is tested against, not statistics about any operator.
             </p>
           </div>
           <ol className="border-t border-line">
@@ -191,8 +224,8 @@ export default function Home() {
         <div className="container-page">
           <div className="max-w-2xl">
             <Eyebrow n="02">How it works</Eyebrow>
-            <h2 className="type-h2">Your logs stay private. Their fingerprints go public.</h2>
-            <p className="type-lead text-ink-2 mt-5">Four steps, all running in the background of the systems you already use.</p>
+            <h2 className="type-h2">Records stay with the operator. Only a commitment goes public.</h2>
+            <p className="type-lead text-ink-2 mt-5">Four steps, running in the background beside the systems you already use.</p>
           </div>
           <ol className="relative mt-14 grid gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
             {/* Connecting line behind the step numbers */}
@@ -211,11 +244,12 @@ export default function Home() {
             <div className="bg-accent-soft border-l-4 border-accent p-6">
               <h3 className="type-h3">Why batch?</h3>
               <p className="type-body text-ink-2 mt-2">
-                One transaction per sensor reading is slow and expensive. A Merkle tree folds a full day of
-                readings into one root, so one transaction anchors them all.
+                Anchoring each record on its own means one transaction per record. A Merkle tree folds a
+                period&apos;s records into one root, so a single fixed-size commitment covers them all.
               </p>
               <p className="type-body text-ink-2 mt-3">
-                Each reading can still be proven on its own: its path to the root is all an auditor needs.
+                Each record can still be proven alone: its short path to the root is all an auditor needs.
+                The cost comparison with per-record anchoring is part of the FYP2 evaluation.
               </p>
             </div>
             <div className="min-w-0">
@@ -225,15 +259,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 03 What you get: certificate */}
+      {/* 03 What the auditor receives: certificate */}
       <section id="certificate" className="section-pad bg-surface border-b border-line scroll-mt-16">
         <div className="container-page grid lg:grid-cols-[5fr_7fr] gap-12 lg:gap-16 items-center">
           <div>
-            <Eyebrow n="03">What you get</Eyebrow>
-            <h2 className="type-h2">An audit-ready certificate for every shipment.</h2>
+            <Eyebrow n="03">What the auditor receives</Eyebrow>
+            <h2 className="type-h2">One bundle, checked against settings the operator can&apos;t change.</h2>
             <p className="type-lead text-ink-2 mt-5">
-              Hand your client or auditor one document that proves the temperature record is exactly what the
-              sensors logged.
+              The bundle carries the record, its salt, its path to the root and the settings the operator
+              claims. The auditor checks it against a dossier received separately, which pins the chain, the
+              contract and the anchoring address.
             </p>
             <ul className="mt-8 space-y-6">
               {CERTIFICATE_POINTS.map(point => (
@@ -246,7 +281,7 @@ export default function Home() {
                 </li>
               ))}
             </ul>
-            <p className="type-small text-muted mt-8">Design preview. The report format is finalised with each pilot.</p>
+            <p className="type-small text-muted mt-8">Design preview. The commitment and proof are real but not anchored. The report format is finalised with each pilot.</p>
           </div>
           <div className="min-w-0 lg:pl-4">
             <IntegrityCertificate />
@@ -254,12 +289,52 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 03 Compliance: dark band */}
+      {/* 04 Limits */}
+      <section id="limits" className="section-pad border-b border-line scroll-mt-16">
+        <div className="container-page">
+          <div className="max-w-2xl">
+            <Eyebrow n="04">Limits</Eyebrow>
+            <h2 className="type-h2">What Immutal detects, and what it cannot.</h2>
+            <p className="type-lead text-ink-2 mt-5">
+              The security claim is narrow: once a period&apos;s anchor is final, a later change to its records is
+              detectable without trusting the operator. The threat model names eighteen attack classes (T1 to T18)
+              and says which fall inside that claim.
+            </p>
+          </div>
+          <div className="mt-12 grid lg:grid-cols-3 gap-6">
+            {[
+              { icon: ShieldCheck, label: 'Detected once the anchor is final', tone: 'border-t-verified', text: 'text-verified', items: DETECTED },
+              { icon: Clock, label: 'Bounded, not prevented', tone: 'border-t-excursion', text: 'text-excursion', items: BOUNDED },
+              { icon: Ban, label: 'Not detected, by design', tone: 'border-t-tampered', text: 'text-tampered', items: UNDETECTED },
+            ].map(col => (
+              <div key={col.label} className={`bg-surface border border-line border-t-4 ${col.tone} p-6 lg:p-8`}>
+                <h3 className={`type-eyebrow flex items-center gap-2 ${col.text}`}><Icon icon={col.icon} className="size-4" />{col.label}</h3>
+                <ul className="mt-5 space-y-4">
+                  {col.items.map(item => (
+                    <li key={item} className="type-body text-ink-2">{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 border border-line bg-surface p-6">
+            <h3 className="type-h3">Prototype limits</h3>
+            <ul className="mt-3 grid md:grid-cols-2 gap-x-8 gap-y-2 type-small text-ink-2 list-disc pl-5">
+              <li>The hot anchoring key sits in an environment variable. Production needs an encrypted keystore, a hardware module or a cloud key service.</li>
+              <li>Sepolia anchors carry no economic security, and the network itself faces replacement. Production use means mainnet or a layer 2.</li>
+              <li>The demo server and plain HTTP suit a demonstration only. Production needs a WSGI server behind TLS with rotated API keys.</li>
+              <li>The same contract cannot repair a period that a stolen key pre-empted. The service raises a critical alert and the admin revokes the key.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* 05 Compliance: dark band */}
       <section id="compliance" className="section-pad bg-band text-white scroll-mt-16">
         <div className="container-page">
           <div className="max-w-2xl">
-            <Eyebrow n="04" onDark>Built for Malaysia</Eyebrow>
-            <h2 className="type-h2">Evidence for the audits Malaysian logistics actually faces.</h2>
+            <Eyebrow n="05" onDark>Built for Malaysia</Eyebrow>
+            <h2 className="type-h2">Evidence for the inspections Malaysian pharmaceutical distribution faces.</h2>
           </div>
           <div className="mt-12 grid md:grid-cols-3 gap-px bg-band-line border border-band-line">
             {COMPLIANCE.map(c => (
@@ -273,16 +348,19 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <p className="type-small text-band-2 mt-6">Immutal strengthens your compliance evidence. It does not replace certification.</p>
+          <p className="type-small text-band-2 mt-6">
+            NPRA inspects. Immutal does not certify and does not replace inspection or certification. It
+            strengthens the records an inspection relies on.
+          </p>
         </div>
       </section>
 
-      {/* 04 Trust: comparison */}
+      {/* 06 Trust: comparison */}
       <section id="trust" className="section-pad bg-surface border-b border-line scroll-mt-16">
         <div className="container-page">
           <div className="max-w-2xl">
-            <Eyebrow n="05">Why it holds up</Eyebrow>
-            <h2 className="type-h2">Proof that doesn&apos;t depend on trusting anyone.</h2>
+            <Eyebrow n="06">Why it holds up</Eyebrow>
+            <h2 className="type-h2">Proof that doesn&apos;t depend on trusting the operator.</h2>
           </div>
           <div className="mt-12 grid md:grid-cols-2 gap-6">
             <div className="border border-line p-6 lg:p-8">
@@ -318,17 +396,17 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 05 Integrations */}
+      {/* 07 Integrations */}
       <section id="integrations" className="section-pad border-b border-line scroll-mt-16">
         <div className="container-page">
           <div className="max-w-2xl">
-            <Eyebrow n="06">Integrations</Eyebrow>
-            <h2 className="type-h2">Plugs into what your warehouse already runs.</h2>
+            <Eyebrow n="07">Integrations</Eyebrow>
+            <h2 className="type-h2">Sits beside the systems your warehouse already runs.</h2>
           </div>
           <div className="mt-12 grid lg:grid-cols-[5fr_7fr] gap-6">
             <div className="bg-surface border-2 border-ink p-6 lg:p-8">
               <div className="type-eyebrow text-verified flex items-center gap-2">
-                <span className="size-2 bg-current" aria-hidden="true" />Available now
+                <span className="size-2 bg-current" aria-hidden="true" />Built in the prototype
               </div>
               <ul className="mt-6 space-y-3">
                 {AVAILABLE_NOW.map(item => (
@@ -337,10 +415,10 @@ export default function Home() {
               </ul>
             </div>
             <div className="border border-line">
-              <div className="type-eyebrow text-muted px-6 pt-6">Roadmap, ordered by pilot demand</div>
+              <div className="type-eyebrow text-muted px-6 pt-6">Not built yet, ordered by pilot demand</div>
               <ul className="mt-2">
                 {ROADMAP.map(r => (
-                  <li key={r.phase} className="grid sm:grid-cols-[7rem_1fr] gap-1 sm:gap-4 px-6 py-4 border-b border-line last:border-b-0">
+                  <li key={r.phase} className="grid sm:grid-cols-[9rem_1fr] gap-1 sm:gap-4 px-6 py-4 border-b border-line last:border-b-0">
                     <span className="type-small font-semibold">{r.phase}</span>
                     <span className="type-small text-ink-2">{r.items}</span>
                   </li>
@@ -351,18 +429,18 @@ export default function Home() {
           <div className="mt-6 border border-line bg-surface p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h3 className="type-h3">Build WMS or ERP software?</h3>
-              <p className="type-body text-ink-2 mt-1">White-label Immutal&apos;s compliance layer inside your own product.</p>
+              <p className="type-body text-ink-2 mt-1">Talk to us about embedding Immutal&apos;s integrity layer in your own product.</p>
             </div>
             <a href={PARTNER_MAILTO} className="btn btn-secondary">Partner with us</a>
           </div>
         </div>
       </section>
 
-      {/* 06 Status: timeline */}
+      {/* 08 Status: timeline */}
       <section id="status" className="section-pad bg-surface border-b border-line scroll-mt-16">
         <div className="container-page">
           <div className="max-w-2xl">
-            <Eyebrow n="07">Project status</Eyebrow>
+            <Eyebrow n="08">Project status</Eyebrow>
             <h2 className="type-h2">Where Immutal is today.</h2>
           </div>
           <ol className="relative mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
@@ -380,7 +458,7 @@ export default function Home() {
             ))}
           </ol>
           <p className="type-small text-ink-2 mt-12">
-            Check a real Immutal anchor yourself:{' '}
+            Check an anchor from the v0 prototype on Sepolia, which wrote one hash per record:{' '}
             <a href={REFERENCE_TX_URL} target="_blank" rel="noopener noreferrer" className="type-data text-accent underline underline-offset-4 break-all hover:text-accent-hover">
               {REFERENCE_TX.slice(0, 18)}…{REFERENCE_TX.slice(-8)} ↗
             </a>
@@ -388,14 +466,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 07 Call to action */}
+      {/* 09 Call to action */}
       <section id="contact" className="section-pad bg-accent text-white scroll-mt-16">
         <div className="container-page">
-          <div className="type-eyebrow text-white/80 mb-4">08 · Run a pilot</div>
-          <h2 className="type-display max-w-3xl">Run a pilot on one cold‑chain lane.</h2>
+          <div className="type-eyebrow text-white/80 mb-4">09 · Run a pilot</div>
+          <h2 className="type-display max-w-3xl">Test it on one cold‑chain lane.</h2>
           <p className="type-lead text-white/85 mt-6 max-w-2xl">
-            We&apos;re looking for Malaysian 3PLs, pharma distributors and Halal exporters to pilot Immutal on
-            real shipments. Tell us what you move, and where your temperature and handling logs live today.
+            We&apos;re looking for a Malaysian pharmaceutical distributor or 3PL willing to share an anonymised export
+            of temperature and handling logs under a data-sharing agreement. We seal it, try to tamper with it,
+            and report detection per scenario and the false-alarm rate. Without a partner, we run the same tests
+            on synthetic and public data.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3">
             <a href={PILOT_MAILTO} className="btn bg-white text-accent hover:bg-accent-soft">Request a pilot</a>
@@ -412,7 +492,7 @@ export default function Home() {
         <div className="container-page py-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
             <div className="font-mono text-sm font-bold tracking-[0.12em]">IMMUTAL</div>
-            <p className="type-small text-muted mt-1">Zero-PII integrity for cold-chain and Halal logistics. © 2026</p>
+            <p className="type-small text-muted mt-1">Tamper-evident integrity for cold-chain records. A final-year project. © 2026</p>
           </div>
           <nav className="flex flex-wrap gap-x-6 gap-y-2 type-small text-ink-2" aria-label="Footer">
             {NAV.map(item => (
